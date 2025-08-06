@@ -132,7 +132,11 @@ elif menu == "🌟 Reviews":
     with st.form("review_form"):
         review_user = st.text_input("Your Name")
         restaurant_list = pd.read_sql_query("SELECT Name, RestaurantId FROM Restaurants ORDER BY Name", conn)
-        restaurant_name = st.selectbox("Select Restaurant", restaurant_list['Name'])
+        restaurant_name = st.selectbox(
+            "Select Restaurant",
+            ["-- Select a restaurant --"] + restaurant_list['Name'].tolist()
+        )
+
         rating = st.slider("Rating (1 = Bad, 10 = Excellent)", 1, 10, 5)
         comment = st.text_area("Leave a comment (optional)")
         submit = st.form_submit_button("✅ Submit Review")
