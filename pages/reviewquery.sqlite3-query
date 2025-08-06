@@ -1,0 +1,12 @@
+-- database: ../restaurant_list.db
+
+SELECT * FROM Reviews;
+CREATE TABLE Reviews (
+    ReviewId INTEGER PRIMARY KEY,
+    RestaurantId INTEGER,
+    UserName TEXT,
+    Rating INTEGER,
+    Commet TEXT,
+    CreatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (RestaurantId) REFERENCES Restaurants(RestaurantId)
+);
