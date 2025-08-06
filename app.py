@@ -15,9 +15,10 @@ st.title("Miami Spice 2025")
 menu = st.sidebar.radio("Navigate", ["🍽️ Browse Restaurants", "🌟 Reviews"])
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Welcome!")
-st.sidebar.markdown("This app helps you explore, filter, and review restaurants participating in **Miami Spice 2025**. Use the navigation menu to get started. - Remi Kim")
+st.sidebar.markdown("This app helps you explore, filter, and review restaurants participating in **Miami Spice 2025**. Use the navigation menu to get started.")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Connect with me")
+st.sidebar.markdown("Remi Kim")
 st.sidebar.markdown("[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/remikim213/)")
 st.sidebar.markdown("[![Instagram](https://img.shields.io/badge/Instagram-Follow-purple?logo=instagram)](https://www.instagram.com/remikim213)")
 
@@ -30,6 +31,7 @@ days = [day for day in day_order if day in existing_days]
 time_order = ["Brunch", "Lunch", "Dinner"]
 existing_times = pd.read_sql_query("SELECT DISTINCT Time FROM Options", conn)['Time'].dropna().tolist()
 times = [time for time in time_order if time in existing_times]
+users = sorted(pd.read_sql_query("SELECT DISTINCT UserName FROM Reviews", conn)['UserName'].dropna().tolist())
 
 # ---------------------------
 # 1. Restaurants
@@ -39,11 +41,12 @@ if menu == "🍽️ Browse Restaurants":
 
     with st.form("filter_search_form"):
         search_name = st.text_input("Restaurant Name (search)")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         selected_cuisine = col1.selectbox("Cuisine", ["All"] + cuisines)
         selected_day = col2.selectbox("Day", ["All"] + days)
         selected_time = col3.selectbox("Time", ["All"] + times)
-        selected_location = col4.selectbox("Location", ["All"] + locations)
+        selected_locations = col4.multiselect("Location", locations, default=[])
+        selected_user = col5.text_input("User")
 
         submit_filter = st.form_submit_button("🔎 Search / Filter")
 
@@ -63,9 +66,13 @@ if menu == "🍽️ Browse Restaurants":
         if selected_time != "All":
             filters.append("o.Time = ?")
             params.append(selected_time)
-        if selected_location != "All":
-            filters.append("r.Location = ?")
-            params.append(selected_location)
+        if selected_locations:
+            placeholders = ','.join(['?' for _ in selected_locations])
+            filters.append(f"r.Location IN ({placeholders})")
+            params.extend(selected_locations)
+        if selected_user:
+            filters.append("rev.UserName LIKE ?")
+            params.append(f"%{selected_user}%")
 
         where_clause = "WHERE " + " AND ".join(filters) if filters else ""
 
@@ -73,6 +80,7 @@ if menu == "🍽️ Browse Restaurants":
         SELECT DISTINCT r.RestaurantId, r.Name, r.Cuisine, r.Location, r.Link
         FROM Restaurants r
         LEFT JOIN Options o ON r.RestaurantId = o.RestaurantId
+        LEFT JOIN Reviews rev ON r.RestaurantId = rev.RestaurantId
         {where_clause}
         ORDER BY r.Name
         """
@@ -155,7 +163,79 @@ elif menu == "🌟 Reviews":
             st.error("Restaurant not found.")
 
     st.markdown("---")
+    
+    st.subheader("🌟 View Reviews")
 
+    with st.form("View Reviews By Restaurant"):
+        restaurant_list = pd.read_sql_query("SELECT Name, RestaurantId FROM Restaurants ORDER BY Name", conn)
+        restaurant_name = st.selectbox(
+            "Select Restaurant",
+            ["-- Select a restaurant --"] + restaurant_list['Name'].tolist()
+        )
+        submit_view = st.form_submit_button("View Reviews")
+
+    # Display restaurant reviews and average rating when submitted
+    if submit_view and restaurant_name != "-- Select a restaurant --":
+        # Get restaurant ID
+        selected_row = restaurant_list[restaurant_list['Name'] == restaurant_name]
+        if not selected_row.empty:
+            restaurant_id = int(selected_row['RestaurantId'].values[0])
+            
+            # Get average rating
+            avg_rating_query = """
+            SELECT AVG(Rating) as AverageRating, COUNT(*) as TotalReviews
+            FROM Reviews 
+            WHERE RestaurantId = ?
+            """
+            avg_result = pd.read_sql_query(avg_rating_query, conn, params=[restaurant_id])
+            
+            # Get all reviews with comments
+            reviews_query = """
+            SELECT UserName, Rating, Comment, CreatedAt
+            FROM Reviews 
+            WHERE RestaurantId = ?
+            ORDER BY CreatedAt DESC
+            """
+            reviews_df = pd.read_sql_query(reviews_query, conn, params=[restaurant_id])
+            
+            if not reviews_df.empty:
+                # Display average rating
+                avg_rating = avg_result['AverageRating'].iloc[0]
+                total_reviews = avg_result['TotalReviews'].iloc[0]
+                
+                st.subheader(f"📊 {restaurant_name} - Reviews Summary")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Average Rating", f"{avg_rating:.1f}/10")
+                with col2:
+                    st.metric("Total Reviews", total_reviews)
+                
+                # Display star rating visualization
+                stars = "★" * int(avg_rating) + "☆" * (10 - int(avg_rating))
+                st.write(f"Rating: {stars} ({avg_rating:.1f}/10)")
+                
+                st.markdown("---")
+                st.subheader("📝 All Reviews")
+                
+                # Format and display reviews
+                reviews_df['CreatedAt'] = pd.to_datetime(reviews_df['CreatedAt']).dt.strftime('%Y-%m-%d %H:%M')
+                reviews_df['Stars'] = reviews_df['Rating'].apply(lambda x: "★" * x + "☆" * (10 - x))
+                
+                for idx, review in reviews_df.iterrows():
+                    with st.container():
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.write(f"**{review['UserName']}** - {review['CreatedAt']}")
+                            st.write(f"{review['Stars']} ({review['Rating']}/10)")
+                            if pd.notna(review['Comment']) and review['Comment'].strip():
+                                st.write(f" {review['Comment']}")
+                        with col2:
+                            st.write("")
+                        st.markdown("---")
+            else:
+                st.info(f" No reviews yet for {restaurant_name}. Be the first to leave a review!")
+
+    st.markdown("---")
     st.subheader("📝 View Your Reviews")
     review_user_view = st.text_input("Enter your name to view your reviews", key="view_reviews")
 
