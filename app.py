@@ -22,10 +22,14 @@ st.sidebar.markdown("[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-
 st.sidebar.markdown("[![Instagram](https://img.shields.io/badge/Instagram-Follow-purple?logo=instagram)](https://www.instagram.com/remikim213)")
 
 # Shared data
-cuisines = pd.read_sql_query("SELECT DISTINCT Cuisine FROM Restaurants", conn)['Cuisine'].dropna().tolist()
-days = pd.read_sql_query("SELECT DISTINCT Day FROM Options", conn)['Day'].dropna().tolist()
-times = pd.read_sql_query("SELECT DISTINCT Time FROM Options", conn)['Time'].dropna().tolist()
-locations = pd.read_sql_query("SELECT DISTINCT Location FROM Restaurants",conn)['Location'].dropna().tolist()
+cuisines = sorted(pd.read_sql_query("SELECT DISTINCT Cuisine FROM Restaurants", conn)['Cuisine'].dropna().tolist())
+locations = sorted(pd.read_sql_query("SELECT DISTINCT Location FROM Restaurants", conn)['Location'].dropna().tolist())
+day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+existing_days = pd.read_sql_query("SELECT DISTINCT Day FROM Options", conn)['Day'].dropna().tolist()
+days = [day for day in day_order if day in existing_days]
+time_order = ["Brunch", "Lunch", "Dinner"]
+existing_times = pd.read_sql_query("SELECT DISTINCT Time FROM Options", conn)['Time'].dropna().tolist()
+times = [time for time in time_order if time in existing_times]
 
 # ---------------------------
 # 1. Restaurants
@@ -74,54 +78,50 @@ if menu == "🍽️ Browse Restaurants":
         """
         df = pd.read_sql_query(query, conn, params=params)
 
-        if not df.empty:
-            df['Link'] = df['Link'].apply(lambda x: f'<a href="{x}" target="_blank">Visit Site for the Menu</a>' if pd.notna(x) else "")
+        if df.empty:
+            st.warning("🚫 No matching restaurants found. Please try different filters.")
+        else:
+            st.success(f"✅ {len(df)} restaurant(s) found.")
+
+            df['Link'] = df['Link'].apply(
+                lambda x: f'<a href="{x}" target="_blank">Visit Site for the Menu</a>' if pd.notna(x) else "")
             df = df.rename(columns={
                 'Name': 'Restaurant',
                 'Cuisine': 'Cuisine',
                 'Location': 'Location',
                 'Link': 'Website'
             })
-            st.success(f"✅ {len(df)} restaurant(s) found.")
-            
-            if not df.empty:
-                # Get full options details for all the filtered restaurants
-                restaurant_ids = df['RestaurantId'].tolist()
-                options_query = f"""
-                    SELECT RestaurantId, Time, Day, Price
-                    FROM Options
-                    WHERE RestaurantId IN ({','.join(['?']*len(restaurant_ids))})
-                    ORDER BY Day, Time
-                """
-                options_df = pd.read_sql_query(options_query, conn, params=restaurant_ids)
 
-                # Group options by RestaurantId for easy lookup
-                options_grouped = options_df.groupby('RestaurantId')
+            restaurant_ids = df['RestaurantId'].tolist()
+            options_query = f"""
+                SELECT RestaurantId, Time, Day, Price
+                FROM Options
+                WHERE RestaurantId IN ({','.join(['?'] * len(restaurant_ids))})
+                ORDER BY Day, Time
+            """
+            options_df = pd.read_sql_query(options_query, conn, params=restaurant_ids)
+            options_grouped = options_df.groupby('RestaurantId')
 
-                for idx, row in df.iterrows():
-                    rest_id = row['RestaurantId']
-                    rest_name = row['Restaurant']
-                    rest_cuisine = row['Cuisine']
-                    rest_location = row['Location']
-                    rest_link = row['Website']
+            for idx, row in df.iterrows():
+                rest_id = row['RestaurantId']
+                rest_name = row['Restaurant']
+                rest_cuisine = row['Cuisine']
+                rest_location = row['Location']
+                rest_link = row['Website']
 
-                    with st.expander(f"{rest_name} ({rest_cuisine}, {rest_location})"):
-                        if pd.notna(rest_link) and rest_link != "":
-                            st.markdown(rest_link, unsafe_allow_html=True)
+                with st.expander(f"{rest_name} ({rest_cuisine}, {rest_location})"):
+                    if pd.notna(rest_link) and rest_link != "":
+                        st.markdown(rest_link, unsafe_allow_html=True)
 
-                        if rest_id in options_grouped.groups:
-                            rest_options = options_grouped.get_group(rest_id)
-                            day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-                            time_order = ["Brunch", "Lunch", "Dinner"]
-                            rest_options['Day'] = pd.Categorical(rest_options['Day'], categories=day_order, ordered=True)
-                            rest_options['Time'] = pd.Categorical(rest_options['Time'], categories=time_order, ordered=True)
-                            rest_options = rest_options.sort_values(by=["Day", "Time"])
-                            for _, opt_row in rest_options.iterrows():
-                                st.write(f"- **{opt_row['Day']}** | {opt_row['Time']} | Price: {opt_row['Price']}")
-                        else:
-                            st.write("No available options.")
-            else:
-                st.warning("No matching restaurants found.")
+                    if rest_id in options_grouped.groups:
+                        rest_options = options_grouped.get_group(rest_id)
+                        rest_options['Day'] = pd.Categorical(rest_options['Day'], categories=day_order, ordered=True)
+                        rest_options['Time'] = pd.Categorical(rest_options['Time'], categories=time_order, ordered=True)
+                        rest_options = rest_options.sort_values(by=["Day", "Time"])
+                        for _, opt_row in rest_options.iterrows():
+                            st.write(f"- **{opt_row['Day']}** | {opt_row['Time']} | Price: {opt_row['Price']}")
+                    else:
+                        st.write("No available options.")
 
 # ---------------------------
 # 2. Reviews
