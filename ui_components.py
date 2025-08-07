@@ -35,12 +35,18 @@ class UIComponents:
         st.subheader("🍽️ Search and Filter Restaurants")
 
         with st.form("filter_search_form"):
-            search_name = st.selectbox("Restaurant Name (search)", ["All"] + filter_data['restaurants'])
+            restaurants = filter_data.get('restaurants', [])
+            cuisines = filter_data.get('cuisines', [])
+            days = filter_data.get('days', [])
+            times = filter_data.get('times', [])
+            locations = filter_data.get('locations', [])
+            
+            search_name = st.selectbox("Restaurant Name (search)", ["All"] + restaurants)
             col1, col2, col3, col4, col5 = st.columns(5)
-            selected_cuisine = col1.selectbox("Cuisine", ["All"] + filter_data['cuisines'])
-            selected_day = col2.selectbox("Day", ["All"] + filter_data['days'])
-            selected_time = col3.selectbox("Time", ["All"] + filter_data['times'])
-            selected_locations = col4.multiselect("Location", filter_data['locations'], default=[])
+            selected_cuisine = col1.selectbox("Cuisine", ["All"] + cuisines)
+            selected_day = col2.selectbox("Day", ["All"] + days)
+            selected_time = col3.selectbox("Time", ["All"] + times)
+            selected_locations = col4.multiselect("Location", locations, default=[])
             selected_user = col5.text_input("User")
 
             submit_filter = st.form_submit_button("🔎 Search / Filter")
@@ -64,10 +70,10 @@ class UIComponents:
             st.success(f"✅ {len(restaurants)} restaurant(s) found.")
 
             for restaurant in restaurants:
-                rest_name = restaurant.get('Name', 'Unknown')
-                rest_cuisine = restaurant.get('Cuisine', 'Unknown')
-                rest_location = restaurant.get('Location', 'Unknown')
-                rest_link = restaurant.get('Link', '')
+                rest_name = restaurant.get('Name') or 'Unknown'
+                rest_cuisine = restaurant.get('Cuisine') or 'Unknown'
+                rest_location = restaurant.get('Location') or 'Unknown'
+                rest_link = restaurant.get('Link') or ''
 
                 with st.expander(f"{rest_name} ({rest_cuisine}, {rest_location})"):
                     if rest_link:
@@ -83,9 +89,9 @@ class UIComponents:
                     
                     if restaurant_options:
                         for option in restaurant_options:
-                            day = option.get('Day', 'Unknown')
-                            time = option.get('Time', 'Unknown')
-                            price = option.get('Price', 'Unknown')
+                            day = option.get('Day') or 'Unknown'
+                            time = option.get('Time') or 'Unknown'
+                            price = option.get('Price') or 'Unknown'
                             st.write(f"- **{day}** | {time} | Price: {price}")
                     else:
                         st.write("No available options.")
@@ -98,7 +104,7 @@ class UIComponents:
         with st.form("review_form"):
             review_user = st.text_input("Your Name")
             restaurant_list = db_manager.get_all_restaurants()
-            restaurant_names = [doc['Name'] for doc in restaurant_list]
+            restaurant_names = [doc['Name'] for doc in restaurant_list if doc.get('Name') is not None]
             restaurant_name = st.selectbox(
                 "Select Restaurant",
                 ["-- Select a restaurant --"] + restaurant_names
@@ -124,7 +130,7 @@ class UIComponents:
 
         with st.form("View Reviews By Restaurant"):
             restaurant_list = db_manager.get_all_restaurants()
-            restaurant_names = [doc['Name'] for doc in restaurant_list]
+            restaurant_names = [doc['Name'] for doc in restaurant_list if doc.get('Name') is not None]
             restaurant_name = st.selectbox(
                 "Select Restaurant",
                 ["-- Select a restaurant --"] + restaurant_names
@@ -164,7 +170,8 @@ class UIComponents:
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     created_at = review['CreatedAt'].strftime('%Y-%m-%d %H:%M') if isinstance(review['CreatedAt'], datetime) else str(review['CreatedAt'])
-                    st.write(f"**{review['UserName']}** - {created_at}")
+                    user_name = review.get('UserName') or 'Anonymous'
+                    st.write(f"**{user_name}** - {created_at}")
                     review_stars = "★" * review['Rating'] + "☆" * (10 - review['Rating'])
                     st.write(f"{review_stars} ({review['Rating']}/10)")
                     if review.get('Comment') and review['Comment'].strip():

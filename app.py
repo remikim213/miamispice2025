@@ -26,6 +26,11 @@ def main():
         # Get filter data for dropdowns
         filter_data = db_manager.get_filter_data()
         
+        # Ensure filter_data has all required keys
+        if not filter_data:
+            st.error("❌ Failed to load filter data from database.")
+            st.stop()
+        
         # Handle menu navigation
         if menu == "🍽️ Browse Restaurants":
             handle_restaurant_browsing(db_manager, filter_data)
