@@ -39,20 +39,19 @@ class SQLiteManager:
             query += f" AND r.Location IN ({placeholders})"
             params.extend(filters['selected_locations'])
         
-        # Add day/time filter
+        # Add day/time filter - optimized with EXISTS instead of IN
         if ((filters.get('selected_day') and filters['selected_day'] != "All") or 
             (filters.get('selected_time') and filters['selected_time'] != "All")):
             query += """
-            AND r.RestaurantId IN (
-                SELECT DISTINCT RestaurantId 
-                FROM Options 
-                WHERE 1=1
+            AND EXISTS (
+                SELECT 1 FROM Options o 
+                WHERE o.RestaurantId = r.RestaurantId
             """
             if filters.get('selected_day') and filters['selected_day'] != "All":
-                query += " AND Day = ?"
+                query += " AND o.Day = ?"
                 params.append(filters['selected_day'])
             if filters.get('selected_time') and filters['selected_time'] != "All":
-                query += " AND Time = ?"
+                query += " AND o.Time = ?"
                 params.append(filters['selected_time'])
             query += ")"
         
@@ -88,36 +87,48 @@ class SQLiteManager:
         return [dict(zip(columns, row)) for row in results]
     
     def get_filter_data(self):
-        """Get filter data from SQLite for better performance"""
-        # Get restaurants
-        self.cursor.execute("SELECT DISTINCT Name FROM Restaurants WHERE Name IS NOT NULL ORDER BY Name")
-        restaurants = [row[0] for row in self.cursor.fetchall()]
+        """Get filter data from SQLite for better performance - optimized version"""
+        # Use a single optimized query instead of multiple separate queries
+        query = """
+        SELECT 
+            (SELECT GROUP_CONCAT(DISTINCT Name) FROM Restaurants WHERE Name IS NOT NULL) as restaurants,
+            (SELECT GROUP_CONCAT(DISTINCT Cuisine) FROM Restaurants WHERE Cuisine IS NOT NULL) as cuisines,
+            (SELECT GROUP_CONCAT(DISTINCT Location) FROM Restaurants WHERE Location IS NOT NULL) as locations,
+            (SELECT GROUP_CONCAT(DISTINCT Day) FROM Options WHERE Day IS NOT NULL) as days,
+            (SELECT GROUP_CONCAT(DISTINCT Time) FROM Options WHERE Time IS NOT NULL) as times
+        """
         
-        # Get cuisines
-        self.cursor.execute("SELECT DISTINCT Cuisine FROM Restaurants WHERE Cuisine IS NOT NULL ORDER BY Cuisine")
-        cuisines = [row[0] for row in self.cursor.fetchall()]
+        self.cursor.execute(query)
+        result = self.cursor.fetchone()
         
-        # Get locations
-        self.cursor.execute("SELECT DISTINCT Location FROM Restaurants WHERE Location IS NOT NULL ORDER BY Location")
-        locations = [row[0] for row in self.cursor.fetchall()]
-        
-        # Get days
-        self.cursor.execute("SELECT DISTINCT Day FROM Options WHERE Day IS NOT NULL ORDER BY Day")
-        existing_days = [row[0] for row in self.cursor.fetchall()]
-        days = [day for day in Config.DAY_ORDER if day in existing_days]
-        
-        # Get times
-        self.cursor.execute("SELECT DISTINCT Time FROM Options WHERE Time IS NOT NULL ORDER BY Time")
-        existing_times = [row[0] for row in self.cursor.fetchall()]
-        times = [time for time in Config.TIME_ORDER if time in existing_times]
+        if result:
+            # Parse the concatenated strings back to lists
+            restaurants = result[0].split(',') if result[0] else []
+            cuisines = result[1].split(',') if result[1] else []
+            locations = result[2].split(',') if result[2] else []
+            days = result[3].split(',') if result[3] else []
+            times = result[4].split(',') if result[4] else []
+            
+            # Filter days and times according to Config order
+            days = [day for day in Config.DAY_ORDER if day in days]
+            times = [time for time in Config.TIME_ORDER if time in times]
+            
+            return {
+                'restaurants': sorted(restaurants),
+                'cuisines': sorted(cuisines),
+                'locations': sorted(locations),
+                'days': days,
+                'times': times,
+                'users': []  # Users will be handled by MongoDB
+            }
         
         return {
-            'restaurants': restaurants,
-            'cuisines': cuisines,
-            'locations': locations,
-            'days': days,
-            'times': times,
-            'users': []  # Users will be handled by MongoDB
+            'restaurants': [],
+            'cuisines': [],
+            'locations': [],
+            'days': [],
+            'times': [],
+            'users': []
         }
     
     def get_all_restaurants(self):
@@ -175,13 +186,21 @@ class DatabaseManager:
             self.reviews_collection.create_index([("RestaurantId", 1)])
             self.reviews_collection.create_index([("UserName", 1)])
             self.reviews_collection.create_index([("CreatedAt", -1)])
+            self.reviews_collection.create_index([("UserName", 1), ("RestaurantId", 1)])  # Compound index
             
         except Exception as e:
             print(f"Warning: Could not create indexes: {e}")
     
     @performance_monitor.monitor_query("get_filter_data")
     def get_filter_data(self):
-        """Get all filter data using SQLite for restaurants/options and MongoDB for users"""
+        """Get all filter data using SQLite for restaurants/options and MongoDB for users with caching"""
+        current_time = time.time()
+        
+        # Return cached data if still valid
+        if (self._filter_data_cache and 
+            current_time - self._filter_data_cache_timestamp < self._cache_duration):
+            return self._filter_data_cache
+        
         # Use SQLite for most filter data
         sqlite_filter_data = self.sqlite_manager.get_filter_data()
         
@@ -193,6 +212,10 @@ class DatabaseManager:
         # Combine SQLite and MongoDB data
         sqlite_filter_data['users'] = users
         
+        # Cache the result
+        self._filter_data_cache = sqlite_filter_data
+        self._filter_data_cache_timestamp = current_time
+        
         return sqlite_filter_data
     
     @performance_monitor.monitor_query("search_restaurants")
@@ -203,14 +226,15 @@ class DatabaseManager:
         
         # If user filter is applied, we need to filter by MongoDB reviews
         if filters.get('selected_user') and filters['selected_user'].strip():
-            # Get restaurant IDs that have reviews from the specified user
+            # Get restaurant IDs that have reviews from the specified user - optimized with projection
             reviews_filter = {
                 'UserName': {'$regex': filters['selected_user'], '$options': 'i'}
             }
             
+            # Use projection to only get RestaurantId field, reducing data transfer
             reviewed_restaurant_ids = set(
                 doc['RestaurantId'] 
-                for doc in self.reviews_collection.find(reviews_filter, {'RestaurantId': 1})
+                for doc in self.reviews_collection.find(reviews_filter, {'RestaurantId': 1, '_id': 0})
             )
             
             # Filter SQLite results by reviewed restaurant IDs
@@ -292,29 +316,6 @@ class DatabaseManager:
     @performance_monitor.monitor_query("get_user_reviews")
     def get_user_reviews(self, user_name):
         """Get all reviews by a specific user using MongoDB"""
-        # Use aggregation to join reviews with restaurant data in one query
-        pipeline = [
-            {'$match': {'UserName': {'$regex': (user_name or '').strip(), '$options': 'i'}}},
-            {'$sort': {'CreatedAt': -1}},
-            {
-                '$lookup': {
-                    'from': 'Restaurants',  # This would be SQLite, so we'll handle it differently
-                    'localField': 'RestaurantId',
-                    'foreignField': 'RestaurantId',
-                    'as': 'restaurant_info'
-                }
-            },
-            {'$unwind': '$restaurant_info'},
-            {
-                '$project': {
-                    'Restaurant': '$restaurant_info.Name',
-                    'Rating': 1,
-                    'Comment': 1,
-                    'CreatedAt': 1
-                }
-            }
-        ]
-        
         # Since we can't do a lookup from MongoDB to SQLite, we'll get the reviews first
         # and then enrich them with restaurant names from SQLite
         reviews = list(self.reviews_collection.find(
@@ -341,6 +342,18 @@ class DatabaseManager:
     def get_all_restaurants(self):
         """Get all restaurants for dropdowns using SQLite"""
         return self.sqlite_manager.get_all_restaurants()
+    
+    def get_restaurant_id_field(self, collection_name):
+        """Get the restaurant ID field name for a given collection"""
+        # For SQLite collections, the field is always 'RestaurantId'
+        if collection_name in [Config.RESTAURANTS_COLLECTION, Config.OPTIONS_COLLECTION]:
+            return 'RestaurantId'
+        # For MongoDB collections (reviews), the field is also 'RestaurantId'
+        elif collection_name == Config.REVIEWS_COLLECTION:
+            return 'RestaurantId'
+        else:
+            # Default fallback
+            return 'RestaurantId'
     
     def test_connection(self):
         """Test the database connection and return status"""
