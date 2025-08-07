@@ -21,13 +21,13 @@ class UIComponents:
         
         return menu
     
-    @staticmethod
-    def render_debug_info(db_manager):
-        """Render debug information in sidebar"""
-        st.sidebar.markdown("### Debug Info")
-        st.sidebar.markdown(f"Restaurants ID field: {db_manager.get_restaurant_id_field(Config.RESTAURANTS_COLLECTION)}")
-        st.sidebar.markdown(f"Options ID field: {db_manager.get_restaurant_id_field(Config.OPTIONS_COLLECTION)}")
-        st.sidebar.markdown(f"Reviews ID field: {db_manager.get_restaurant_id_field(Config.REVIEWS_COLLECTION)}")
+    # @staticmethod
+    # def render_debug_info(db_manager):
+    #     """Render debug information in sidebar"""
+    #     st.sidebar.markdown("### Debug Info")
+    #     st.sidebar.markdown(f"Restaurants ID field: {db_manager.get_restaurant_id_field(Config.RESTAURANTS_COLLECTION)}")
+    #     st.sidebar.markdown(f"Options ID field: {db_manager.get_restaurant_id_field(Config.OPTIONS_COLLECTION)}")
+    #     st.sidebar.markdown(f"Reviews ID field: {db_manager.get_restaurant_id_field(Config.REVIEWS_COLLECTION)}")
     
     @staticmethod
     def render_restaurant_search_form(filter_data):

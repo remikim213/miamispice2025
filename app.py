@@ -17,14 +17,11 @@ def main():
         connection_status = db_manager.test_connection()
         if connection_status['status'] == 'error':
             st.error(f"❌ Database connection failed: {connection_status['message']}")
-            st.info("💡 Please check your .env file and MongoDB connection settings.")
+            st.info("💡 Please check your secrets.toml file and MongoDB connection settings.")
             st.stop()
         
         # Render sidebar and get menu selection
         menu = UIComponents.render_sidebar()
-        
-        # Render debug info in sidebar
-        UIComponents.render_debug_info(db_manager)
         
         # Get filter data for dropdowns
         filter_data = db_manager.get_filter_data()

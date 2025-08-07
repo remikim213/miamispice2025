@@ -10,7 +10,7 @@ class DatabaseManager:
     
     def __init__(self):
         self.client = MongoClient(Config.MONGODB_URI, server_api=ServerApi('1'))
-        self.db = self.client[Config.DATABASE_NAME]
+        self.db = self.client['MiamiSpice']
         self.restaurants_collection = self.db[Config.RESTAURANTS_COLLECTION]
         self.options_collection = self.db[Config.OPTIONS_COLLECTION]
         self.reviews_collection = self.db[Config.REVIEWS_COLLECTION]
@@ -339,7 +339,7 @@ class DatabaseManager:
             
             return {
                 'status': 'success',
-                'message': f'Connected to {Config.DATABASE_NAME} database',
+                'message': f'Connected to MiamiSpice database',
                 'collections': collections
             }
         except Exception as e:

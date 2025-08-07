@@ -16,7 +16,7 @@ The application has been refactored with a modular architecture:
 ### Security
 
 - All secrets are managed through environment variables
-- Database credentials are stored in `.env` file (not committed to version control)
+- Database credentials are stored in `.env` file (not committed to version control) or `secrets.toml`
 - Configuration is centralized in `config.py`
 
 ## 🚀 Setup
@@ -29,11 +29,13 @@ pip install -r requirements.txt
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the root directory with your MongoDB credentials:
+Create a `secrets.toml` file in the root directory with your MongoDB credentials:
 
-```env
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority&appName=YourApp
-DATABASE_NAME=MiamiSpice
+```secrets.toml
+[mongo]
+host = "miamispice.xxxxxxxx.mongodb.net"
+username = "xxx"
+password = "xxx"
 ```
 
 ### 3. Run the Application

@@ -1,5 +1,4 @@
-streamlit
-pandas
-sqlalchemy
-pymongo
-python-dotenv
+streamlit == 1.40.1
+pandas == 2.2.3
+sqlalchemy == 2.0.39
+pymongo == 4.10.1

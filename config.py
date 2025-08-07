@@ -1,16 +1,19 @@
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
+import streamlit as st
 
 # Load environment variables from .env file
-load_dotenv()
+#load_dotenv()
 
 class Config:
     """Configuration class for the Miami Spice application"""
     
     # MongoDB Configuration
-    MONGODB_URI = os.getenv('MONGODB_URI')
-    DATABASE_NAME = os.getenv('DATABASE_NAME')
-    
+    MONGO_USER = st.secrets["mongo"]["username"]
+    MONGO_PASS = st.secrets["mongo"]["password"]
+    MONGO_HOST = st.secrets["mongo"]["host"]
+    MONGODB_URI = f"mongodb+srv://{MONGO_USER}:{MONGO_PASS}@{MONGO_HOST}/?retryWrites=true&w=majority&appName=MiamiSpice"
+
     # Collection names
     RESTAURANTS_COLLECTION = 'Restaurants'
     OPTIONS_COLLECTION = 'Options'
