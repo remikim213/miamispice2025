@@ -23,6 +23,7 @@ st.sidebar.markdown("[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-
 st.sidebar.markdown("[![Instagram](https://img.shields.io/badge/Instagram-Follow-purple?logo=instagram)](https://www.instagram.com/remikim213)")
 
 # Shared data
+restaurants = sorted(pd.read_sql_query("SELECT DISTINCT Name FROM Restaurants", conn)['Name'].dropna().tolist())
 cuisines = sorted(pd.read_sql_query("SELECT DISTINCT Cuisine FROM Restaurants", conn)['Cuisine'].dropna().tolist())
 locations = sorted(pd.read_sql_query("SELECT DISTINCT Location FROM Restaurants", conn)['Location'].dropna().tolist())
 day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -40,7 +41,7 @@ if menu == "🍽️ Browse Restaurants":
     st.subheader("🍽️ Search and Filter Restaurants")
 
     with st.form("filter_search_form"):
-        search_name = st.text_input("Restaurant Name (search)")
+        search_name = st.selectbox("Restaurant Name (search)", ["All"] + restaurants)
         col1, col2, col3, col4, col5 = st.columns(5)
         selected_cuisine = col1.selectbox("Cuisine", ["All"] + cuisines)
         selected_day = col2.selectbox("Day", ["All"] + days)
@@ -54,7 +55,7 @@ if menu == "🍽️ Browse Restaurants":
         filters = []
         params = []
 
-        if search_name:
+        if search_name != "All":
             filters.append("r.Name LIKE ?")
             params.append(f"%{search_name}%")
         if selected_cuisine != "All":
