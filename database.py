@@ -41,7 +41,8 @@ class SQLiteManager:
         
         # Add day/time filter - optimized with EXISTS instead of IN
         if ((filters.get('selected_day') and filters['selected_day'] != "All") or 
-            (filters.get('selected_time') and filters['selected_time'] != "All")):
+            (filters.get('selected_time') and filters['selected_time'] != "All") or
+            (filters.get('selected_price') and filters['selected_price'] != "All")):
             query += """
             AND EXISTS (
                 SELECT 1 FROM Options o 
@@ -53,6 +54,9 @@ class SQLiteManager:
             if filters.get('selected_time') and filters['selected_time'] != "All":
                 query += " AND o.Time = ?"
                 params.append(filters['selected_time'])
+            if filters.get('selected_price') and filters['selected_price'] != "All":
+                query += " AND o.Price = ?"
+                params.append(filters['selected_price'])
             query += ")"
         
         self.cursor.execute(query, params)
@@ -62,7 +66,7 @@ class SQLiteManager:
         columns = [description[0] for description in self.cursor.description]
         return [dict(zip(columns, row)) for row in results]
     
-    def get_restaurant_options(self, restaurant_id, selected_day="All", selected_time="All"):
+    def get_restaurant_options(self, restaurant_id, selected_day="All", selected_time="All", selected_price="All"):
         """Get options for a specific restaurant using SQLite"""
         if restaurant_id is None:
             return []
@@ -76,6 +80,9 @@ class SQLiteManager:
         if selected_time and selected_time != "All":
             query += " AND Time = ?"
             params.append(selected_time)
+        if selected_price and selected_price != "All":
+            query += " AND Price = ?"
+            params.append(selected_price)
         
         query += " ORDER BY Day, Time"
         
@@ -95,7 +102,8 @@ class SQLiteManager:
             (SELECT GROUP_CONCAT(DISTINCT Cuisine) FROM Restaurants WHERE Cuisine IS NOT NULL) as cuisines,
             (SELECT GROUP_CONCAT(DISTINCT Location) FROM Restaurants WHERE Location IS NOT NULL) as locations,
             (SELECT GROUP_CONCAT(DISTINCT Day) FROM Options WHERE Day IS NOT NULL) as days,
-            (SELECT GROUP_CONCAT(DISTINCT Time) FROM Options WHERE Time IS NOT NULL) as times
+            (SELECT GROUP_CONCAT(DISTINCT Time) FROM Options WHERE Time IS NOT NULL) as times,
+            (SELECT GROUP_CONCAT(DISTINCT Price) FROM Options WHERE Price IS NOT NULL) as prices
         """
         
         self.cursor.execute(query)
@@ -108,10 +116,12 @@ class SQLiteManager:
             locations = result[2].split(',') if result[2] else []
             days = result[3].split(',') if result[3] else []
             times = result[4].split(',') if result[4] else []
+            prices = result[5].split(',') if result[5] else []
             
             # Filter days and times according to Config order
             days = [day for day in Config.DAY_ORDER if day in days]
             times = [time for time in Config.TIME_ORDER if time in times]
+            prices = [price for price in Config.PRICE_ORDER if price in prices]
             
             return {
                 'restaurants': sorted(restaurants),
@@ -119,6 +129,7 @@ class SQLiteManager:
                 'locations': sorted(locations),
                 'days': days,
                 'times': times,
+                'prices': prices,
                 'users': []  # Users will be handled by MongoDB
             }
         
@@ -128,6 +139,7 @@ class SQLiteManager:
             'locations': [],
             'days': [],
             'times': [],
+            'prices': [],
             'users': []
         }
     
@@ -243,9 +255,9 @@ class DatabaseManager:
         
         return sqlite_results
     
-    def get_restaurant_options(self, restaurant_id, selected_day="All", selected_time="All"):
+    def get_restaurant_options(self, restaurant_id, selected_day="All", selected_time="All", selected_price="All"):
         """Get options for a specific restaurant using SQLite"""
-        return self.sqlite_manager.get_restaurant_options(restaurant_id, selected_day, selected_time)
+        return self.sqlite_manager.get_restaurant_options(restaurant_id, selected_day, selected_time, selected_price)
     
     def submit_review(self, restaurant_name, user_name, rating, comment):
         """Submit a new review using MongoDB"""

@@ -59,6 +59,7 @@ def handle_restaurant_browsing(db_manager, filter_data):
             'selected_day': form_data['selected_day'],
             'selected_time': form_data['selected_time'],
             'selected_locations': form_data['selected_locations'],
+            'selected_price': form_data['selected_price'],
             'selected_user': form_data['selected_user']
         }
         

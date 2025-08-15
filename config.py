@@ -26,6 +26,7 @@ class Config:
     # Filter options
     DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     TIME_ORDER = ["Brunch", "Lunch", "Dinner"]
+    PRICE_ORDER = ["35", "45", "60"]
     
     # Possible restaurant ID field names
     POSSIBLE_RESTAURANT_ID_FIELDS = ['RestaurantId', 'restaurantId', 'restaurant_id', 'Restaurant_ID']

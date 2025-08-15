@@ -40,23 +40,26 @@ class UIComponents:
             days = filter_data.get('days', [])
             times = filter_data.get('times', [])
             locations = filter_data.get('locations', [])
+            prices = filter_data.get('prices', [])
             
             search_name = st.selectbox("Restaurant Name (search)", ["All"] + restaurants)
-            col1, col2, col3, col4, col5 = st.columns(5)
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
             selected_cuisine = col1.selectbox("Cuisine", ["All"] + cuisines)
             selected_day = col2.selectbox("Day", ["All"] + days)
             selected_time = col3.selectbox("Time", ["All"] + times)
             selected_locations = col4.multiselect("Location", locations, default=[])
-            selected_user = col5.text_input("User")
+            selected_price = col5.selectbox("Price", ["All"] + prices)
+            selected_user = col6.text_input("User")
 
             submit_filter = st.form_submit_button("🔎 Search / Filter")
-            
+
             return {
                 'search_name': search_name,
                 'selected_cuisine': selected_cuisine,
                 'selected_day': selected_day,
                 'selected_time': selected_time,
                 'selected_locations': selected_locations,
+                'selected_price': selected_price,
                 'selected_user': selected_user,
                 'submit_filter': submit_filter
             }
@@ -84,7 +87,8 @@ class UIComponents:
                     restaurant_options = db_manager.get_restaurant_options(
                         restaurant[restaurant_id_field],
                         filters.get('selected_day', 'All'),
-                        filters.get('selected_time', 'All')
+                        filters.get('selected_time', 'All'),
+                        filters.get('selected_price', 'All')
                     )
                     
                     if restaurant_options:
